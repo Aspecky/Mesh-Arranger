@@ -14,17 +14,14 @@
 bl_info = {
     "name": "Mesh Arranger",
     "author": "Aspecky",
-    "description": "",
+    "description": "Allows you to position your objects in an organized manner.",
     "blender": (2, 80, 0),
     "version": (0, 0, 1),
-    "location": "",
-    "warning": "",
+    "location": "N-Panel > Arrange",
     "category": "Object",
 }
 
-import typing
 import bpy
-from bpy.types import Context
 from mathutils import Vector
 
 
