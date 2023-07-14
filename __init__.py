@@ -12,17 +12,23 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 bl_info = {
-    "name": "Mesh Arranger",
+    "name": "Object Arranger",
     "author": "Aspecky",
     "description": "Allows you to position your objects in an organized manner.",
     "blender": (2, 80, 0),
-    "version": (0, 0, 1),
+    "version": (1, 0, 0, 14072023),
     "location": "N-Panel > Arrange",
     "category": "Object",
+    "doc_url": "https://github.com/Aspecky/Object-Arranger",
+    "tracker_url": "https://github.com/Aspecky/Object-Arranger/issues",
 }
 
 import bpy
 from mathutils import Vector
+
+
+def filter_meshes(obj):
+    return [obj for obj in [obj] + obj.children_recursive if obj.type == "MESH"]
 
 
 def get_root_parents():
@@ -48,7 +54,7 @@ def get_bounding_box(objs: list):
             max_point.y = max(max_point.y, world_pos.y)
             max_point.z = max(max_point.z, world_pos.z)
 
-    return min_point, max_point
+    return (min_point + max_point) / 2, max_point - min_point
 
 
 class PropertyGroup(bpy.types.PropertyGroup):
@@ -57,10 +63,19 @@ class PropertyGroup(bpy.types.PropertyGroup):
         default=False,
         description="Treat the selected objects as one",
     )
+    margin: bpy.props.FloatProperty(
+        name="Margin",
+        default=0,
+        description="The distance between the objects being arranged.",
+    )
+    order: bpy.props.EnumProperty(
+        name="Order",
+        items=[("True", "Descending", ""), ("False", "Ascending", "")],
+    )
 
 
-class OBJECT_OT_center(bpy.types.Operator):
-    bl_idname = "mesh_arranger.center"
+class OBJECT_ARRANGER_center(bpy.types.Operator):
+    bl_idname = "object_arranger.center"
     bl_label = "Center"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -69,37 +84,30 @@ class OBJECT_OT_center(bpy.types.Operator):
         return len(context.selected_objects) != 0
 
     def execute(self, context):
-        props = context.scene.mesh_arranger
+        props = context.scene.object_arranger
         if props.conglomerate:
             roots = get_root_parents()
-            objs = [
-                obj
-                for root in roots
-                for obj in [root] + root.children_recursive
-                if obj.type == "MESH"
-            ]
-
-            min_point, max_point = get_bounding_box(objs)
-            center, size = (min_point + max_point) / 2, max_point - min_point
+            center, size = get_bounding_box(
+                [
+                    obj
+                    for root in roots
+                    for obj in [root] + root.children_recursive
+                    if obj.type == "MESH"
+                ]
+            )
             for obj in roots:
-                offset = obj.location - center
-                obj.location = Vector((0, 0, size.z / 2)) + offset
+                obj.location = Vector((0, 0, size.z / 2)) + (obj.location - center)
 
         else:
             for obj in get_root_parents():
-                objs = [
-                    obj for obj in [obj] + obj.children_recursive if obj.type == "MESH"
-                ]
-                min_point, max_point = get_bounding_box(objs)
-                center, size = (min_point + max_point) / 2, max_point - min_point
-                offset = obj.location - center
-                obj.location = (0, 0, size.z / 2 + offset.z)
+                center, size = get_bounding_box(filter_meshes(obj))
+                obj.location = Vector((0, 0, size.z / 2)) + (obj.location - center)
 
         return {"FINISHED"}
 
 
-class OBJECT_OT_snap_to_plane(bpy.types.Operator):
-    bl_idname = "mesh_arranger.snap_to_plane"
+class OBJECT_ARRANGER_snap_to_plane(bpy.types.Operator):
+    bl_idname = "object_arranger.snap_to_plane"
     bl_label = "Snap to Plane"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -108,37 +116,69 @@ class OBJECT_OT_snap_to_plane(bpy.types.Operator):
         return len(context.selected_objects) != 0
 
     def execute(self, context):
-        props = context.scene.mesh_arranger
+        props = context.scene.object_arranger
         if props.conglomerate:
             roots = get_root_parents()
-            objs = [
-                obj
-                for root in roots
-                for obj in [root] + root.children_recursive
-                if obj.type == "MESH"
-            ]
-
-            min_point, max_point = get_bounding_box(objs)
-            center, size = (min_point + max_point) / 2, max_point - min_point
+            center, size = get_bounding_box(
+                [
+                    obj
+                    for root in roots
+                    for obj in [root] + root.children_recursive
+                    if obj.type == "MESH"
+                ]
+            )
             for obj in roots:
-                offset = obj.location - center
-                obj.location.z = size.z / 2 + offset.z
+                obj.location.z = size.z / 2 + (obj.location - center).z
         else:
             for obj in get_root_parents():
-                objs = [
-                    obj for obj in [obj] + obj.children_recursive if obj.type == "MESH"
-                ]
-                min_point, max_point = get_bounding_box(objs)
-                center, size = (min_point + max_point) / 2, max_point - min_point
-                offset = obj.location - center
-                obj.location.z = size.z / 2 + offset.z
+                center, size = get_bounding_box(filter_meshes(obj))
+                obj.location.z = size.z / 2 + (obj.location - center).z
+
+        return {"FINISHED"}
+
+
+class OBJECT_ARRANGER_arrange(bpy.types.Operator):
+    bl_idname = "object_arranger.arrange"
+    bl_label = "Arrange"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return len(context.selected_objects) > 1
+
+    def execute(self, context):
+        props = context.scene.object_arranger
+        margin = props.margin
+        order = props.order == "True"
+
+        objs = []
+        for obj in get_root_parents():
+            center, size = get_bounding_box(
+                [obj for obj in [obj] + obj.children_recursive if obj.type == "MESH"]
+            )
+            objs.append([obj, size.x * size.y * size.z, center, size])
+        objs = sorted(objs, key=lambda x: x[1], reverse=order)
+
+        v = objs[0]
+        obj, center, size = v[0], v[2], v[3]
+        offset = obj.location - center
+        obj.location = Vector((0, 0, size.z / 2)) + offset
+        last_loc, last_offset, last_size = obj.location, offset, size
+
+        for v in objs[1:]:
+            obj, center, size = v[0], v[2], v[3]
+            offset = obj.location - center
+            obj.location = last_loc + offset - last_offset
+            obj.location.x += (last_size.x / 2) + (size.x / 2) + margin
+            obj.location.z = size.z / 2 + offset.z
+            last_loc, last_offset, last_size = obj.location, offset, size
 
         return {"FINISHED"}
 
 
 class Panel(bpy.types.Panel):
-    bl_label = "Mesh Arranger"
-    bl_idname = "VIEW3D_PT_mesh_arranger_panel"
+    bl_label = "Object Arranger"
+    bl_idname = "VIEW3D_PT_object_arranger_panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Arrange"
@@ -151,27 +191,38 @@ class Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        props = context.scene.mesh_arranger
+        props = context.scene.object_arranger
 
         box = layout.box()
-        box.operator("mesh_arranger.center")
-        box.operator("mesh_arranger.snap_to_plane")
+        box.operator("object_arranger.center")
+        box.operator("object_arranger.snap_to_plane")
         box.prop(props, "conglomerate")
+
+        box = layout.box()
+        box.operator("object_arranger.arrange")
+        box.prop(props, "margin")
+        box.prop(props, "order")
 
 
 register_classes, unregister_classes = bpy.utils.register_classes_factory(
-    [PropertyGroup, OBJECT_OT_center, OBJECT_OT_snap_to_plane, Panel]
+    [
+        PropertyGroup,
+        OBJECT_ARRANGER_arrange,
+        OBJECT_ARRANGER_center,
+        OBJECT_ARRANGER_snap_to_plane,
+        Panel,
+    ]
 )
 
 
 def register():
     register_classes()
-    bpy.types.Scene.mesh_arranger = bpy.props.PointerProperty(type=PropertyGroup)
+    bpy.types.Scene.object_arranger = bpy.props.PointerProperty(type=PropertyGroup)
 
 
 def unregister():
     unregister_classes()
-    del bpy.types.Scene.mesh_arranger
+    del bpy.types.Scene.object_arranger
 
 
 if __name__ == "__main__":
