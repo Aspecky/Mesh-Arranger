@@ -17,7 +17,6 @@ Arranges the selected objects based on their bounding box size
 
 https://github.com/Aspecky/Object-Arranger/assets/60469830/f93152eb-9690-4acd-a412-e1aead5f799a
 
-
 > Note: For all usages, selecting an object will move the entire assembly. For example, if object A is parented object B and you select the latter and press center, object A will also be moved 
 
 ## Installation
