@@ -16,7 +16,7 @@ bl_info = {
     "author": "Aspecky",
     "description": "Allows you to position your objects in an organized manner.",
     "blender": (2, 80, 0),
-    "version": (1, 0, 0, 14072023),
+    "version": (1, 0, 0),
     "location": "N-Panel > Arrange",
     "category": "Object",
     "doc_url": "https://github.com/Aspecky/Object-Arranger",
