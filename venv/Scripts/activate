@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="D:\Documents\Dev\Coding\Python\Blender\MeshArranger\venv"
+VIRTUAL_ENV="D:\Documents\Dev\Coding\Python\Blender\ObjectArranger\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
